@@ -9,22 +9,30 @@ from chi_elections import SummaryClient
 client = SummaryClient(url="https://chicagoelections.gov/results/ap/SummaryExport.txt")
 client.fetch()
 
-municipal = []
-ward = []
-police_district = []
-referendum = []
+output_directory = os.path.join(
+    os.getcwd(),
+    "results",
+    datetime.datetime.now().isoformat(),
+)
+
+os.mkdir(output_directory)
+
+police_district_results = []
+referendum_results = []
 
 for race in client.races:
     if race.name == "Totals":
         print(race.serialize())
         continue
 
+    race_name = re.sub(r"(Council Member,|Alderperson|Chicago Police Department)\s", "", race.name)
+
+    if race.reporting_unit_name == "POLICE":
+        race_name = f"{race_name} Council"
+
+    race_results = []
+
     for candidate in race.candidates:
-        race_name = re.sub(r"(Council Member,|Alderperson|Chicago Police Department)\s", "", race.name)
-
-        if race.reporting_unit_name == "POLICE":
-            race_name = f"{race_name} Council"
-
         if race.reporting_unit_name != "SPECIAL REFERENDUM":
             choice_name = candidate.full_name.encode("latin1").decode("utf-8").title()
 
@@ -38,44 +46,30 @@ for race in client.races:
             choice_name,
             candidate.vote_total,
             candidate.vote_total / (race.total_ballots_cast or 1) * 100,
-            race.precincts_reporting,
             race.precincts_reporting / race.precincts_total * 100,
         ]
 
-        if race.reporting_unit_name == "MUNICIPAL":
-            municipal.append(row)
-        elif race.reporting_unit_name == "WARD":
-            ward.append(row)
-        elif race.reporting_unit_name == "POLICE":
-            police_district.append(row)
+        if race.reporting_unit_name == "POLICE":
+            police_district_results.append(row)
         elif race.reporting_unit_name == "SPECIAL REFERENDUM":
-            referendum.append(row)
+            referendum_results.append(row)
         else:
-            raise ValueError(f"Don't know where to put {row}")
+            race_results.append(row)
 
-output_directory = os.path.join(
-    os.getcwd(),
-    "results",
-    datetime.datetime.now().isoformat(),
-)
+    if race.reporting_unit_name not in ("POLICE", "SPECIAL REFERENDUM"):
+        with open(os.path.join(output_directory, f"{race_name}.csv"), "w") as output_file:
+            writer = csv.writer(output_file)
+            writer.writerow(["Candidate", "Votes Total", "Votes Percent", ""])
+            writer.writerows(row[1:4] + [""] for row in race_results)
+            precincts_reporting = race_results[0][-1]
+            writer.writerow(["", "", "", f"{precincts_reporting}% of precincts reporting"])
 
-os.mkdir(output_directory)
-
-HEADER = (
-    "Candidate",
-    "Votes",
-    "Total Votes Percentage",
-    "Precincts Reported",
-    "Precincts Percentage",
-)
 
 for file, contents, first_column in (
-    ("municipal.csv", municipal, "Race"),
-    ("alders.csv", ward, "Ward"),
-    ("police_district_council.csv", police_district, "District"),
-    ("misc.csv", referendum, "Question")
+    ("Police Councils.csv", police_district_results, "District"),
+    ("Misc.csv", referendum_results, "Question")
 ):
     with open(os.path.join(output_directory, file), "w") as output_file:
         writer = csv.writer(output_file)
-        writer.writerow([first_column, *HEADER])
+        writer.writerow([first_column, "Candidate", "Votes Total", "Votes Percent", "Precincts Reporting Percent"])
         writer.writerows(contents)
