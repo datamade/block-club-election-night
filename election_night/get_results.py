@@ -46,7 +46,8 @@ for race in client.races:
             choice_name,
             candidate.vote_total,
             candidate.vote_total / (race.total_ballots_cast or 1) * 100,
-            race.precincts_reporting / race.precincts_total * 100,
+            race.precincts_reporting,
+            race.precincts_total,
         ]
 
         if race.reporting_unit_name == "POLICE":
@@ -59,10 +60,13 @@ for race in client.races:
     if race.reporting_unit_name not in ("POLICE", "SPECIAL REFERENDUM"):
         with open(os.path.join(output_directory, f"{race_name}.csv"), "w") as output_file:
             writer = csv.writer(output_file)
-            writer.writerow(["Candidate", "Votes Total", "Votes Percent", ""])
+            writer.writerow(["Candidate", "Votes Total", "Votes Percent"])
             writer.writerows(row[1:4] + [""] for row in race_results)
-            precincts_reporting = race_results[0][-1]
-            writer.writerow(["", "", "", f"{precincts_reporting}% of precincts reporting"])
+            precincts_reporting = race_results[0][-2]
+            precincts_total = race_results[0][-1]
+            writer.writerow([
+                f"{precincts_reporting} of {precincts_total} precincts reporting", "", "",
+            ])
 
 
 for file, contents, first_column in (
@@ -71,5 +75,12 @@ for file, contents, first_column in (
 ):
     with open(os.path.join(output_directory, file), "w") as output_file:
         writer = csv.writer(output_file)
-        writer.writerow([first_column, "Candidate", "Votes Total", "Votes Percent", "Precincts Reporting Percent"])
+        writer.writerow([
+            first_column,
+            "Candidate",
+            "Votes Total",
+            "Votes Percent",
+            "Precincts Reporting",
+            "Precincts Total"
+        ])
         writer.writerows(contents)
