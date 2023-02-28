@@ -34,7 +34,7 @@ for race in client.races:
 
     for candidate in race.candidates:
         if race.reporting_unit_name != "SPECIAL REFERENDUM":
-            choice_name = candidate.full_name.encode("latin1").decode("utf-8").title()
+            choice_name = candidate.full_name.title()
 
             if choice_name == "Cb Johnson":
                 choice_name = "CB Johnson"
