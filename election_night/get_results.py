@@ -29,8 +29,6 @@ if __name__ == "__main__":
     client = SummaryClient(url=summary_url)
     client.fetch()
 
-    print(len(client.races))
-
     if len(client.races) == 1:
         print(f"No results at {summary_url} yet. Please try again after 7 p.m. on Election Night. 🗳")
         sys.exit()
@@ -45,6 +43,8 @@ if __name__ == "__main__":
     )
 
     os.mkdir(output_directory)
+
+    last_updated = f"Last updated at {datetime.datetime.now().strftime('%-I:%M %p on %b %-d, %Y')}"
 
     police_district_results = []
     referendum_results = []
@@ -70,14 +70,14 @@ if __name__ == "__main__":
             else:
                 choice_name = candidate.full_name
 
-            row = [
-                race_name,
-                choice_name,
-                candidate.vote_total,
-                candidate.vote_total / (race.total_ballots_cast or 1) * 100,
-                race.precincts_reporting,
-                race.precincts_total,
-            ]
+            row = {
+                "Race Name": race_name,
+                "Candidate": choice_name,
+                "Votes Total": candidate.vote_total,
+                "Votes Percent": round(candidate.vote_total / (race.total_ballots_cast or 1) * 100, 2),
+                "Precincts Reporting": race.precincts_reporting,
+                "Precincts Total": race.precincts_total,
+            }
 
             if race.reporting_unit_name == "POLICE":
                 police_district_results.append(row)
@@ -88,14 +88,29 @@ if __name__ == "__main__":
 
         if race.reporting_unit_name not in ("POLICE", "SPECIAL REFERENDUM"):
             with open(os.path.join(output_directory, f"{race_name}.csv"), "w") as output_file:
-                writer = csv.writer(output_file)
-                writer.writerow(["Candidate", "Votes Total", "Votes Percent"])
-                writer.writerows(row[1:4] + [""] for row in race_results)
-                precincts_reporting = race_results[0][-2]
-                precincts_total = race_results[0][-1]
-                writer.writerow([
-                    f"{precincts_reporting} of {precincts_total} precincts reporting", "", "",
-                ])
+                writer = csv.DictWriter(
+                    output_file,
+                    fieldnames=["Candidate", "Votes Total", "Votes Percent"],
+                    extrasaction="ignore"
+                )
+
+                sorted_results = reversed(
+                    sorted(race_results, key=lambda x: x["Votes Percent"])
+                )
+
+                writer.writeheader()
+                writer.writerows(sorted_results)
+
+                precincts_reporting = race_results[0]["Precincts Reporting"]
+                precincts_total = race_results[0]["Precincts Total"]
+
+                final_row = {
+                    "Candidate": f"{precincts_reporting} of {precincts_total} precincts reporting",
+                    "Votes Total": "",
+                    "Votes Percent": last_updated,
+                }
+
+                writer.writerow(final_row)
 
 
     for file, contents, first_column in (
@@ -112,4 +127,5 @@ if __name__ == "__main__":
                 "Precincts Reporting",
                 "Precincts Total"
             ])
-            writer.writerows(contents)
+            writer.writerows(row.values() for row in contents)
+            writer.writerow(["", "", "", "", "", last_updated])
