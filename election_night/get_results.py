@@ -27,10 +27,10 @@ class Reporter(object):
         os.mkdir(self.output_directory)
 
     def get_results(self):
-        yield race, (results)
+        raise NotImplementedError
 
     def parse_result(self):
-        return record
+        raise NotImplementedError
 
     def write_report(self, race_name, results):
         with open(os.path.join(self.output_directory, f"{race_name}.csv"), "w") as output_file:
@@ -58,7 +58,6 @@ class Reporter(object):
 
             writer.writerow(final_row)
 
-
     def run(self):
         for race_name, race_obj, candidates in self.get_results():
             results = [
@@ -66,7 +65,6 @@ class Reporter(object):
             ]
 
             self.write_report(race_name, results)
-
 
 
 class PrecinctReporter(Reporter):
@@ -94,7 +92,6 @@ class PrecinctReporter(Reporter):
             "Precincts Reporting": sum(1 for p, p_data in race_obj.precincts.items() if p_data["Votes"] > 0),
             "Precincts Total": len(race_obj.precincts),
         }
-
 
 
 class SummaryReporter(Reporter):
