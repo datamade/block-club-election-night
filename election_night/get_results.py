@@ -99,7 +99,6 @@ class SummaryReporter(Reporter):
     def get_results(self):
         for race_obj in self.client.races:
             if race_obj.name == "Totals":
-                print(race_obj.serialize())
                 continue
 
             race_name = re.sub(r"(Council Member,|Alderperson|Chicago Police Department)\s", "", race_obj.name)
@@ -174,12 +173,14 @@ if __name__ == "__main__":
         client.fetch()
 
         if len(client.races) == 1:
-            print(f"No results at {summary_url} yet. Please try again after 7 p.m. on Election Night. 🗳")
+            print(
+                f"No results at {summary_url} yet. If it's not yet 7 p.m. on Election Night, "
+                "please try again later.  🗳 Otherwise, try running this command: "
+                "python -m election_night.get_results --precinct")
             sys.exit()
 
         else:
             print(f"Getting summary results from {summary_url}! 🎉")
 
         reporter = SummaryReporter(client)
-
         reporter.run()
