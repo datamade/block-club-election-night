@@ -6,6 +6,131 @@ import re
 from chi_elections import SummaryClient
 from chi_elections.precincts import elections as PrecinctClient
 
+
+class Reporter(object):
+
+    def __init__(self, client):
+        self.client = client
+
+        now = datetime.datetime.now()
+
+        self.last_updated_str = (
+            f"Last updated at {now.strftime('%-I:%M %p on %b %-d, %Y')}"
+        )
+
+        self.output_directory = os.path.join(
+            os.getcwd(),
+            "results",
+            now.isoformat(),
+        )
+
+        os.mkdir(self.output_directory)
+
+    def get_results(self):
+        yield race, (results)
+
+    def parse_result(self):
+        return record
+
+    def write_report(self, race_name, results):
+        with open(os.path.join(self.output_directory, f"{race_name}.csv"), "w") as output_file:
+            writer = csv.DictWriter(
+                output_file,
+                fieldnames=["Candidate", "Votes Total", "Votes Percent"],
+                extrasaction="ignore"
+            )
+
+            sorted_results = reversed(
+                sorted(results, key=lambda x: x["Votes Percent"])
+            )
+
+            writer.writeheader()
+            writer.writerows(sorted_results)
+
+            precincts_reporting = results[0]["Precincts Reporting"]
+            precincts_total = results[0]["Precincts Total"]
+
+            final_row = {
+                "Candidate": f"{precincts_reporting} of {precincts_total} precincts reporting",
+                "Votes Total": "",
+                "Votes Percent": self.last_updated_str,
+            }
+
+            writer.writerow(final_row)
+
+
+    def run(self):
+        for race_name, race_obj, candidates in self.get_results():
+            results = [
+                self.parse_result(race_name, race_obj, candidate) for candidate in candidates
+            ]
+
+            self.write_report(race_name, results)
+
+
+
+class PrecinctReporter(Reporter):
+
+    def get_results(self):
+        for race_name, race_obj in self.client.races.items():
+            race_name = race_name.replace("Alderperson ", "").strip()
+            candidates = {k: v for k, v in race_obj.total.items() if k != 'Votes'}
+
+            yield race_name, race_obj, candidates.items()
+
+    def parse_result(self, race_name, race_obj, candidate):
+        choice_name, choice_votes = candidate
+
+        if choice_name.startswith("CB"):
+            choice_name = "CB Johnson"
+        else:
+            choice_name = choice_name.title()
+
+        return {
+            "Race Name": race_name,
+            "Candidate": choice_name,
+            "Votes Total": choice_votes,
+            "Votes Percent": round(choice_votes / (race_obj.total["Votes"] or 1) * 100, 2),
+            "Precincts Reporting": sum(1 for p, p_data in race_obj.precincts.items() if p_data["Votes"] > 0),
+            "Precincts Total": len(race_obj.precincts),
+        }
+
+
+
+class SummaryReporter(Reporter):
+
+    def get_results(self):
+        for race_obj in self.client.races:
+            if race_obj.name == "Totals":
+                print(race_obj.serialize())
+                continue
+
+            race_name = re.sub(r"(Council Member,|Alderperson|Chicago Police Department)\s", "", race_obj.name)
+
+            if race_obj.reporting_unit_name == "POLICE":
+                race_name = f"{race_name} Council"
+
+            yield race_name, race_obj, race_obj.candidates
+
+    def parse_result(self, race_name, race_obj, candidate):
+        if race_obj.reporting_unit_name != "SPECIAL REFERENDUM":
+            choice_name = candidate.full_name.title()
+
+            if choice_name == "Cb Johnson":
+                choice_name = "CB Johnson"
+        else:
+            choice_name = candidate.full_name
+
+        return {
+            "Race Name": race_name,
+            "Candidate": choice_name,
+            "Votes Total": candidate.vote_total,
+            "Votes Percent": round(candidate.vote_total / (race_obj.total_ballots_cast or 1) * 100, 2),
+            "Precincts Reporting": race_obj.precincts_reporting,
+            "Precincts Total": race_obj.precincts_total,
+        }
+
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -33,65 +158,14 @@ if __name__ == "__main__":
 
     options = parser.parse_args()
 
-    output_directory = os.path.join(
-        os.getcwd(),
-        "results",
-        datetime.datetime.now().isoformat(),
-    )
-
-    os.mkdir(output_directory)
-
-    last_updated = f"Last updated at {datetime.datetime.now().strftime('%-I:%M %p on %b %-d, %Y')}"
-
     if options.precinct:
         print(f"Getting precinct results for {options.election}! 🎉")
 
-        election = PrecinctClient()[options.election]
+        reporter = PrecinctReporter(
+            PrecinctClient()[options.election]
+        )
 
-        for race_name, race_obj in election.races.items():
-            race_results = []
-
-            race_name = race_name.replace("Alderperson ", "").strip()
-
-            for k, v in race_obj.total.items():
-                if k == "Votes":
-                    continue
-
-                row = {
-                    "Race Name": race_name,
-                    "Candidate": k if k == "CB" else k.title(),
-                    "Votes Total": v,
-                    "Votes Percent": round(v / (race_obj.total["Votes"] or 1) * 100, 2),
-                    "Precincts Reporting": sum(1 for p, p_data in race_obj.precincts.items() if p_data["Votes"] > 0),
-                    "Precincts Total": len(race_obj.precincts),
-                }
-
-                race_results.append(row)
-
-            with open(os.path.join(output_directory, f"{race_name}.csv"), "w") as output_file:
-                writer = csv.DictWriter(
-                    output_file,
-                    fieldnames=["Candidate", "Votes Total", "Votes Percent"],
-                    extrasaction="ignore"
-                )
-
-                sorted_results = reversed(
-                    sorted(race_results, key=lambda x: x["Votes Percent"])
-                )
-
-                writer.writeheader()
-                writer.writerows(sorted_results)
-
-                precincts_reporting = race_results[0]["Precincts Reporting"]
-                precincts_total = race_results[0]["Precincts Total"]
-
-                final_row = {
-                    "Candidate": f"{precincts_reporting} of {precincts_total} precincts reporting",
-                    "Votes Total": "",
-                    "Votes Percent": last_updated,
-                }
-
-                writer.writerow(final_row)
+        reporter.run()
 
     else:
         if options.test:
@@ -109,86 +183,6 @@ if __name__ == "__main__":
         else:
             print(f"Getting summary results from {summary_url}! 🎉")
 
-        police_district_results = []
-        referendum_results = []
+        reporter = SummaryReporter(client)
 
-        for race in client.races:
-            if race.name == "Totals":
-                print(race.serialize())
-                continue
-
-            race_name = re.sub(r"(Council Member,|Alderperson|Chicago Police Department)\s", "", race.name)
-
-            if race.reporting_unit_name == "POLICE":
-                race_name = f"{race_name} Council"
-
-            race_results = []
-
-            for candidate in race.candidates:
-                if race.reporting_unit_name != "SPECIAL REFERENDUM":
-                    choice_name = candidate.full_name.title()
-
-                    if choice_name == "Cb Johnson":
-                        choice_name = "CB Johnson"
-                else:
-                    choice_name = candidate.full_name
-
-                row = {
-                    "Race Name": race_name,
-                    "Candidate": choice_name,
-                    "Votes Total": candidate.vote_total,
-                    "Votes Percent": round(candidate.vote_total / (race.total_ballots_cast or 1) * 100, 2),
-                    "Precincts Reporting": race.precincts_reporting,
-                    "Precincts Total": race.precincts_total,
-                }
-
-                if race.reporting_unit_name == "POLICE":
-                    police_district_results.append(row)
-                elif race.reporting_unit_name == "SPECIAL REFERENDUM":
-                    referendum_results.append(row)
-                else:
-                    race_results.append(row)
-
-            if race.reporting_unit_name not in ("POLICE", "SPECIAL REFERENDUM"):
-                with open(os.path.join(output_directory, f"{race_name}.csv"), "w") as output_file:
-                    writer = csv.DictWriter(
-                        output_file,
-                        fieldnames=["Candidate", "Votes Total", "Votes Percent"],
-                        extrasaction="ignore"
-                    )
-
-                    sorted_results = reversed(
-                        sorted(race_results, key=lambda x: x["Votes Percent"])
-                    )
-
-                    writer.writeheader()
-                    writer.writerows(sorted_results)
-
-                    precincts_reporting = race_results[0]["Precincts Reporting"]
-                    precincts_total = race_results[0]["Precincts Total"]
-
-                    final_row = {
-                        "Candidate": f"{precincts_reporting} of {precincts_total} precincts reporting",
-                        "Votes Total": "",
-                        "Votes Percent": last_updated,
-                    }
-
-                    writer.writerow(final_row)
-
-
-        for file, contents, first_column in (
-            ("Police Councils.csv", police_district_results, "District"),
-            ("Misc.csv", referendum_results, "Question")
-        ):
-            with open(os.path.join(output_directory, file), "w") as output_file:
-                writer = csv.writer(output_file)
-                writer.writerow([
-                    first_column,
-                    "Candidate",
-                    "Votes Total",
-                    "Votes Percent",
-                    "Precincts Reporting",
-                    "Precincts Total"
-                ])
-                writer.writerows(row.values() for row in contents)
-                writer.writerow(["", "", "", "", "", last_updated])
+        reporter.run()
