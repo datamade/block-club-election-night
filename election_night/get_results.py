@@ -14,8 +14,14 @@ class Reporter(object):
 
         now = datetime.datetime.now()
 
+        timestamp = (
+            now.strftime('%-I:%M %p %B %-d, %Y')
+                .replace("AM", "a.m.")
+                .replace("PM", "p.m.")
+        )
+
         self.last_updated_str = (
-            f"Last updated at {now.strftime('%-I:%M %p on %b %-d, %Y')}"
+            f"Last updated {timestamp}"
         )
 
         self.output_directory = os.path.join(
@@ -175,7 +181,7 @@ if __name__ == "__main__":
         if len(client.races) == 1:
             print(
                 f"No results at {summary_url} yet. If it's not yet 7 p.m. on Election Night, "
-                "please try again later.  🗳 Otherwise, try running this command: "
+                "please try again later. 🗳  To retrieve precinct results, run this command: "
                 "python -m election_night.get_results --precinct")
             sys.exit()
 

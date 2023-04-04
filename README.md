@@ -68,13 +68,19 @@ This indicates the scrape ran successfully!
 
 You can view the output in the `results/` folder. Output files are grouped in a sub-folder named for the date and time you ran the scrape.
 
+If you'd like to scrape the zero file posted by the Board of Elections for testing, run:
+
+```bash
+python3 -m election_night.get_results --test
+```
+
 ### Scraping precinct-level results
 
 Late on Election Night and into the following day, the Board of Elections stops updating the
 summary file in favor of precinct-level results. You can run the precinct scraper like this:
 
 ```bash
-python -m election_night.get_results --precinct
+python3 -m election_night.get_results --precinct
 ```
 
 You should see something like this in your terminal:
