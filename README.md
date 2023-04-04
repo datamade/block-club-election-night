@@ -43,14 +43,16 @@ pip install -r requirements.txt
 
 ## Running the scraper
 
-First, navigate into the directory containing the scraper code and activate your virtual environment. If you just finished setup, above, you can skip this step!
+Whether you want to scrape the summary file or precinct results, you first need to navigate into the directory containing the scraper code and activate your virtual environment. If you just finished setup, above, you can skip this step!
 
 ```bash
 cd ~/Desktop/block-club-election-night
 source ~/.virtualenvs/elections/bin/activate
 ```
 
-Run the scraper:
+### Scraping the summary file
+
+Run the summary file scraper like this:
 
 ```bash
 python3 -m election_night.get_results
@@ -59,9 +61,28 @@ python3 -m election_night.get_results
 You should see something like this in your terminal:
 
 ```
-OrderedDict([('contest_code', 0), ('race_name', 'Totals'), ('precincts_total', 1291), ('precincts_reporting', 1), ('vote_for', 1)])
+Getting summary results from https://chicagoelections.gov/results/ap/SummaryExport.txt! 🎉
 ```
 
 This indicates the scrape ran successfully!
 
 You can view the output in the `results/` folder. Output files are grouped in a sub-folder named for the date and time you ran the scrape.
+
+### Scraping precinct-level results
+
+Late on Election Night and into the following day, the Board of Elections stops updating the
+summary file in favor of precinct-level results. You can run the precinct scraper like this:
+
+```bash
+python -m election_night.get_results --precinct
+```
+
+You should see something like this in your terminal:
+
+```
+Getting precinct results for 2023 Municipal Runoffs - 4/4/23! 🎉
+```
+
+Note that scraping precinct results takes about a minute to run, since the pages are slow to load.
+
+As before, when the scrape completes, you can view the output in the `results/` folder. Output files are grouped in a sub-folder named for the date and time you ran the scrape.
